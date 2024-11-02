@@ -1,6 +1,3 @@
-Here’s your process rewritten in Markdown format with added explanations on why each approach is beneficial.
-
-```markdown
 # MyChatBotCreation Project
 
 This project involves developing an AI-driven chatbot for mental health diagnosis and recommendations using machine learning models trained on two primary datasets:
