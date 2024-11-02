@@ -1,11 +1,10 @@
 # MyChatBotCreation Project
 
-This project involves developing an AI-driven chatbot for mental health diagnosis and recommendations using machine learning models trained on two primary datasets:
-
 1. **Mental Health Synthetic Dataset** (loaded as `mental_df`)
 2. **Mental Health Counsel Chatbot Dataset** (loaded as `counsel_df`)
 
-## Initial Data Preparation
+## Mental Health Synthetic Dataset Analysis
+## Dataset Overview
 
 The **Mental Health Synthetic Dataset** (`mental_df`) contains the following columns:
 
@@ -147,4 +146,137 @@ With this approach, the chatbot can now use user-provided information to predict
 - **Mood Disorders**
 
 This structured approach ensures that the chatbot offers relevant diagnoses and recommendations based on the user's input, even with the limited dataset accuracy constraints.
+
+## Counsel Dataset Analysis
+## Dataset Overview
+
+The **Mental Health Counsel Chatbot Dataset** (`counsel_df`) initially included the following columns:
+
+- `questionID`, `questionTitle`, `questionText`, `questionUrl`, `topics`, `therapistName`, `therapistUrl`, `answerText`, `upvotes`
+
+For the chatbot model, I focused on the columns: `questionTitle`, `questionText`, `topics`, and `answerText`. These fields are essential for building context around mental health topics, user inquiries, and appropriate responses.
+
+## Step 1: Adding Diagnoses to Topics
+
+Since `counsel_df` did not include direct diagnoses, I needed to add a diagnosis column (`re_diagnosis`) to categorize questions based on their topics. Initially, I mapped keywords in `topics` to diagnoses. For example:
+
+- `Panic` → Panic Disorder
+- `Depression` → Depression
+- `Stress` → Stress-Related Disorders
+
+However, this simple keyword matching method was limited. To improve, I:
+
+1. **Used NLP Techniques**: I leveraged the **NLTK** library to find synonyms and related words for each keyword, enhancing the accuracy of topic-based diagnosis categorization.
+2. **Analyzed Word Frequencies**: By calculating word frequencies, I identified which keywords and related terms occurred most often, helping refine the diagnosis mapping.
+
+### Word Frequency Analysis Code
+
+```python
+from collections import Counter
+
+def get_word_frequencies(counsel_df):
+    counsel_df = counsel_df[['questionText', 'topics', 'answerText']]
+    all_words = ' '.join(counsel_df['topics'].astype(str)).replace(',', '').split()
+    word_count = Counter(all_words)
+
+    stress_count = 0
+    depression_count = 0
+    disorder_count = 0
+    anxiety_count = 0
+    burn_out_count = 0
+
+    for word, count in word_count.items():
+        if word.__contains__("Stress"):
+            stress_count += count
+        elif word.__contains__("Depression"):
+            depression_count += count
+        elif word.__contains__("Disorder"):
+            disorder_count += count
+        elif word.__contains__("Anxiety"):
+            anxiety_count += count
+        elif word.__contains__("Burnout"):
+            burn_out_count += count
+
+    print("Total relevant word count:", stress_count + depression_count + disorder_count + anxiety_count + burn_out_count)
+```
+
+### **Benefit of Word Frequency Analysis**
+
+This analysis helps identify the prevalence of certain mental health terms, allowing for more accurate topic-diagnosis mapping. By understanding term frequency, we can create a foundation for better text-based diagnostics.
+
+## Step 2: Building a Diagnosis Prediction Model
+
+Since only a subset of the `counsel_df` topics could be directly mapped to diagnoses, I trained a machine learning model to predict diagnoses for the remaining data. 
+
+### Model Training with TF-IDF and Logistic Regression
+
+To predict diagnoses for `counsel_df`:
+
+1. **Vectorization with TF-IDF**: I applied **TF-IDF Vectorization** to the `topics` column. TF-IDF assigns weights to words based on their frequency within individual entries, making it ideal for text classification in this context.
+2. **Logistic Regression Model**: I used a logistic regression model trained on the TF-IDF vectors to predict diagnoses.
+
+#### Code for Creating the Diagnosis Model
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+def create_diagnosis_model(train_data, target_column='re_diagnosis'):
+    # Extract text and target columns
+    X_train = train_data['topics']
+    y_train = train_data[target_column]
+
+    # TF-IDF vectorization
+    tfidf = TfidfVectorizer(max_features=5000)
+    X_train_tfidf = tfidf.fit_transform(X_train)
+
+    # Train the logistic regression model
+    model = LogisticRegression(max_iter=1000)
+    model.fit(X_train_tfidf, y_train)
+
+    # Evaluate model accuracy on the training set
+    X_train_pred = model.predict(X_train_tfidf)
+    accuracy = accuracy_score(y_train, X_train_pred)
+    print(f"Training Accuracy: {accuracy}")
+
+    return model, tfidf
+```
+
+### **Benefits of TF-IDF and Logistic Regression**
+
+- **TF-IDF**: Effectively captures important terms in the text, allowing the model to focus on relevant words for each diagnosis category.
+- **Logistic Regression**: Suitable for classification tasks and performs well with text-based data, especially when combined with TF-IDF features.
+
+## Step 3: Predicting Missing Diagnoses
+
+With the trained model, I filled in missing diagnoses in `counsel_df` where `re_diagnosis` was initially empty.
+
+```python
+def predict_missing_diagnoses(df, model, tfidf, target_column='re_diagnosis'):
+    # Filter rows without a diagnosis
+    df_test = df[df[target_column].isna()]
+    X_test = df_test['topics'].fillna('').str.strip()
+    X_test_tfidf = tfidf.transform(X_test)
+
+    # Predict missing diagnoses
+    predictions = model.predict(X_test_tfidf)
+
+    # Assign predictions back to the DataFrame
+    df.loc[df[target_column].isna(), target_column] = predictions
+
+    return df
+```
+
+### **Benefits of Predicting Missing Diagnoses**
+
+This step ensures that all entries in `counsel_df` have an assigned diagnosis, allowing for a more comprehensive and accurate chatbot response system. By using a machine learning model to fill in gaps, the data becomes more uniform and reliable for downstream processes.
+
+## Summary of Approach and Benefits
+
+1. **Enhanced Topic Mapping**: Using NLP to identify synonyms and related terms improved diagnosis mapping accuracy.
+2. **TF-IDF with Logistic Regression**: Provided a reliable way to predict diagnoses, leveraging word importance within each topic.
+3. **Comprehensive Diagnosis Assignment**: Ensured every entry in `counsel_df` had a diagnosis, creating a robust dataset for chatbot training and response accuracy.
+
+This approach makes it possible to classify mental health-related inquiries based on topics, allowing the chatbot to provide accurate diagnoses and recommendations.
 ```
